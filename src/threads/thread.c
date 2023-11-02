@@ -306,6 +306,11 @@ thread_yield (void)
   
   ASSERT (!intr_context ());
 
+  // Interrupts are turned off here so we should really just do the check here instead as we don't
+  // want to busy wait with interrupts off
+  // if waited enough, put on ready, otherwise ????? do nothing ????? can we call thread_yield recursively
+  // if interrupts are off? maybe instead we block the thread
+
   old_level = intr_disable ();
   if (cur != idle_thread) 
     list_push_back (&ready_list, &cur->elem);
@@ -343,6 +348,34 @@ int
 thread_get_priority (void) 
 {
   return thread_current ()->priority;
+}
+
+/* Sets the current thread's start time to start_time. */
+void
+thread_set_sleep_start (int start_time) 
+{
+  thread_current ()->start_time = start_time;
+}
+
+/* Returns the current thread's priority. */
+int
+thread_get_sleep_start (void) 
+{
+  return thread_current ()->start_time;
+}
+
+/* Sets the current thread's sleep_ticks to sleep_ticks. */
+void
+thread_set_sleep_ticks (int sleep_ticks) 
+{
+  thread_current ()->sleep_ticks = sleep_ticks;
+}
+
+/* Returns the current thread's priority. */
+int
+thread_get_sleep_ticks (void) 
+{
+  return thread_current ()->sleep_ticks;
 }
 
 /* Sets the current thread's nice value to NICE. */
@@ -459,6 +492,9 @@ init_thread (struct thread *t, const char *name, int priority)
 
   memset (t, 0, sizeof *t);
   t->status = THREAD_BLOCKED;
+  t->start_time = timer_ticks();
+  t->sleep_ticks = 0;
+
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;

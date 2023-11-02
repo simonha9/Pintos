@@ -92,8 +92,26 @@ timer_sleep (int64_t ticks)
   int64_t start = timer_ticks ();
 
   ASSERT (intr_get_level () == INTR_ON);
-  while (timer_elapsed (start) < ticks) 
-    thread_yield ();
+
+  // Busy waiting, reimplement to not busy wait,
+  // All it does it while the ticks are less than the start time, yield the thread
+  // Sleeps the thread for ticks timer ticks
+  // while (timer_elapsed (start) < ticks) 
+  //   thread_yield ();
+
+  /*
+    Initial implementation is to add ticks to current thread struct and on interrupt wake up
+    check if the ticks have elapsed and if so, wake up the thread
+    if not then continue to sleep
+
+    This implementation is not ideal because it requires the timer interrupt to wake up every thread
+    i.e. we could possibly wait longer than ticks ticks which is not ideal
+    
+    but impl details in the docs say this is fine
+  */
+  struct thread *t = thread_current();
+  thread_set_sleep_start(start);
+  thread_set_sleep_ticks(ticks);
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
