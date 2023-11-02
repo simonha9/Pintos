@@ -137,6 +137,14 @@ thread_tick (void)
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
     intr_yield_on_return ();
+  else 
+  {
+    if (t->status == THREAD_RUNNING && timer_elapsed(t->start_time) >= t->sleep_ticks) {
+      enum intr_level old_level = intr_disable ();
+      thread_unblock(t);
+      intr_set_level (old_level);
+    }
+  }
 }
 
 /* Prints thread statistics. */
@@ -310,13 +318,19 @@ thread_yield (void)
   // want to busy wait with interrupts off
   // if waited enough, put on ready, otherwise ????? do nothing ????? can we call thread_yield recursively
   // if interrupts are off? maybe instead we block the thread
-
-  old_level = intr_disable ();
-  if (cur != idle_thread) 
-    list_push_back (&ready_list, &cur->elem);
-  cur->status = THREAD_READY;
-  schedule ();
-  intr_set_level (old_level);
+  
+  if (timer_elapsed(cur->start_time) < cur->sleep_ticks) {
+    old_level = intr_disable ();
+    thread_block();
+    intr_set_level (old_level);
+  } else {
+    old_level = intr_disable ();
+    if (cur != idle_thread) 
+      list_push_back (&ready_list, &cur->elem);
+    cur->status = THREAD_READY;
+    schedule ();
+    intr_set_level (old_level);
+  }
 }
 
 /* Invoke function 'func' on all threads, passing along 'aux'.
