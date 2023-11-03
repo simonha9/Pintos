@@ -112,6 +112,7 @@ timer_sleep (int64_t ticks)
   struct thread *t = thread_current();
   thread_set_sleep_start(start);
   thread_set_sleep_ticks(ticks);
+  thread_yield();
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be

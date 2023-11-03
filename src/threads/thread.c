@@ -24,6 +24,9 @@
    that are ready to run but not actually running. */
 static struct list ready_list;
 
+/* List of processes in THREAD_BLOCKED state*/
+static struct list blocked_list;
+
 /* List of all processes.  Processes are added to this list
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
@@ -91,6 +94,7 @@ thread_init (void)
 
   lock_init (&tid_lock);
   list_init (&ready_list);
+  list_init (&blocked_list);
   list_init (&all_list);
 
   /* Set up a thread structure for the running thread. */
@@ -134,17 +138,19 @@ thread_tick (void)
   else
     kernel_ticks++;
 
+
+  struct thread* blocked_head = list_entry(list_begin(&blocked_list), struct thread, elem);
+  if (blocked_head != NULL && blocked_head->tid != NULL && timer_elapsed(blocked_head->start_time) >= blocked_head->sleep_ticks) {
+    enum intr_level old_level = intr_disable ();
+    printf("thread %d unblocked\n", blocked_head->tid);
+    thread_unblock(blocked_head);
+    intr_set_level (old_level);
+  }
+
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
     intr_yield_on_return ();
-  else 
-  {
-    if (t->status == THREAD_RUNNING && timer_elapsed(t->start_time) >= t->sleep_ticks) {
-      enum intr_level old_level = intr_disable ();
-      thread_unblock(t);
-      intr_set_level (old_level);
-    }
-  }
+
 }
 
 /* Prints thread statistics. */
@@ -224,7 +230,11 @@ thread_block (void)
   ASSERT (!intr_context ());
   ASSERT (intr_get_level () == INTR_OFF);
 
-  thread_current ()->status = THREAD_BLOCKED;
+  // Add to blocked list
+  struct thread *cur = thread_current ();
+  printf("thread %s blocked\n", cur->name);
+  list_push_back (&blocked_list, &cur->elem);
+  cur->status = THREAD_BLOCKED;
   schedule ();
 }
 
@@ -245,6 +255,9 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
+  if (t == list_entry(list_begin(&blocked_list), struct thread, elem)) {
+    list_pop_front(&blocked_list);
+  }
   list_push_back (&ready_list, &t->elem);
   t->status = THREAD_READY;
   intr_set_level (old_level);
@@ -506,7 +519,7 @@ init_thread (struct thread *t, const char *name, int priority)
 
   memset (t, 0, sizeof *t);
   t->status = THREAD_BLOCKED;
-  t->start_time = timer_ticks();
+  t->start_time = 0;
   t->sleep_ticks = 0;
 
   strlcpy (t->name, name, sizeof t->name);
